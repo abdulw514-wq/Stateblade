@@ -16,6 +16,9 @@ export default {
     if (url.pathname === "/api/twitch-search") {
       return handleTwitchSearch(request, env, ctx);
     }
+    if (url.pathname === "/api/spotify-search") {
+      return handleSpotifySearch(request, env, ctx);
+    }
 
     // Not an API route — serve the static site
     return env.ASSETS.fetch(request);
@@ -336,6 +339,105 @@ async function getTwitchToken(env, ctx) {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=43200", // 12 hours
+    },
+  });
+  ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
+
+  return data.access_token;
+}
+
+// ---------- /api/spotify-search?q=keyword ----------
+// Spotify's artist object publicly exposes follower counts and a 0-100
+// popularity score, so this ranks similarly to the YouTube view.
+async function handleSpotifySearch(request, env, ctx) {
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim();
+
+  if (!q) return json({ error: "Missing query parameter 'q'." }, 400);
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  if (!env.SPOTIFY_CLIENT_ID || !env.SPOTIFY_CLIENT_SECRET) {
+    return json(
+      { error: "Server is missing SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
+      500
+    );
+  }
+
+  try {
+    const token = await getSpotifyToken(env, ctx);
+
+    const searchUrl = new URL("https://api.spotify.com/v1/search");
+    searchUrl.searchParams.set("q", q);
+    searchUrl.searchParams.set("type", "artist");
+    searchUrl.searchParams.set("limit", "20");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const searchData = await searchRes.json();
+
+    if (!searchRes.ok) {
+      return json({ error: searchData?.error?.message || "Spotify search failed." }, searchRes.status);
+    }
+
+    const items = searchData.artists?.items || [];
+
+    const artists = items
+      .map((a) => ({
+        id: a.id,
+        title: a.name,
+        thumbnail: a.images?.[1]?.url || a.images?.[0]?.url || "",
+        followers: safeInt(a.followers?.total),
+        popularity: safeInt(a.popularity),
+        genres: a.genres || [],
+        url: a.external_urls?.spotify || null,
+      }))
+      .sort((a, b) => b.followers - a.followers);
+
+    const result = json({ query: q, channels: artists });
+    ctx.waitUntil(cache.put(cacheKey, result.clone()));
+    return result;
+  } catch (err) {
+    return json({ error: "Unexpected server error.", detail: String(err) }, 500);
+  }
+}
+
+// Fetches (and edge-caches) a Spotify access token via client_credentials.
+// Tokens last 1 hour; we cache for 50 minutes to stay safely within that.
+async function getSpotifyToken(env, ctx) {
+  const cache = caches.default;
+  const tokenCacheKey = new Request("https://internal.stateblade/spotify-token");
+
+  const cached = await cache.match(tokenCacheKey);
+  if (cached) {
+    const data = await cached.json();
+    return data.access_token;
+  }
+
+  const basicAuth = btoa(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`);
+
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const data = await res.json();
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data?.error_description || "Failed to obtain Spotify access token.");
+  }
+
+  const tokenResponse = new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=3000", // 50 minutes
     },
   });
   ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
