@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StateBlade — Know the state of any channel</title>
+<meta name="description" content="Free YouTube channel and keyword research. See who's winning any niche, ranked by real subscriber and view data." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">▲</span>
+        <span class="brand-name">State<span class="accent">Blade</span></span>
+      </a>
+      <nav class="topnav">
+        <a href="#search">Search</a>
+        <a href="#how">How it works</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow">FREE CHANNEL &amp; KEYWORD INTELLIGENCE</p>
+      <h1>Find out who's really<br>winning your niche.</h1>
+      <p class="lede">
+        Type any topic. StateBlade pulls live YouTube data and ranks the channels
+        already dominating it — subscribers, views, upload pace, and the exact
+        tags they're using to rank.
+      </p>
+
+      <form id="searchForm" class="search-form">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Try “personal finance”, “home workouts”, “retro gaming”…"
+          autocomplete="off"
+          required
+        />
+        <button type="submit"><span>Scan niche</span></button>
+      </form>
+      <p class="hint" id="statusHint">Powered by the official YouTube Data API — real numbers, updated every few hours.</p>
+    </section>
+
+    <section id="results" class="results wrap" hidden>
+      <div class="results-head">
+        <h2>State of the niche: <span id="resultQuery" class="accent-text"></span></h2>
+        <p id="resultCount" class="muted"></p>
+      </div>
+      <div id="resultsGrid" class="grid"></div>
+    </section>
+
+    <section id="detail" class="detail wrap" hidden>
+      <button id="backBtn" class="back-btn">← Back to results</button>
+      <div id="detailContent"></div>
+    </section>
+
+    <section id="how" class="how wrap">
+      <p class="eyebrow">HOW IT WORKS</p>
+      <div class="how-grid">
+        <div class="how-card">
+          <span class="how-num">01</span>
+          <h3>Search a keyword</h3>
+          <p>We query the YouTube Data API directly for channels matching your topic — no scraping, no guesswork.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">02</span>
+          <h3>See the real ranking</h3>
+          <p>Channels are sorted by live subscriber and view counts, with a broadcast-style grade for reach and engagement.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">03</span>
+          <h3>Steal the tags</h3>
+          <p>Open any channel to see the exact tags its top videos use — your shortlist of keywords worth targeting.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>StateBlade — free, independent YouTube research. Not affiliated with YouTube or Google.</span>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
