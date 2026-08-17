@@ -29,8 +29,8 @@ els.platformToggle.addEventListener("click", (e) => {
   els.input.placeholder =
     currentPlatform === "twitch"
       ? "Try “speedrunning”, “just chatting”, “valorant”…"
-      : currentPlatform === "spotify"
-      ? "Try “lofi beats”, “indie pop”, “true crime podcast”…"
+      : currentPlatform === "bluesky"
+      ? "Try “ai safety”, “climate”, “indie games”…"
       : "Try “personal finance”, “home workouts”, “retro gaming”…";
 });
 
@@ -93,8 +93,8 @@ async function runSearch(q) {
   const endpoint =
     currentPlatform === "twitch"
       ? "/api/twitch-search"
-      : currentPlatform === "spotify"
-      ? "/api/spotify-search"
+      : currentPlatform === "bluesky"
+      ? "/api/bluesky-search"
       : "/api/search";
 
   try {
@@ -119,10 +119,10 @@ async function runSearch(q) {
       const liveCount = data.channels.filter((c) => c.isLive).length;
       els.resultCount.textContent = `${data.channels.length} channels · ${liveCount} live now`;
       setHint(data.note || "Powered by the official Twitch API.");
-    } else if (currentPlatform === "spotify") {
-      renderSpotifyGrid(data.channels);
-      els.resultCount.textContent = `${data.channels.length} artists, ranked by followers`;
-      setHint("Powered by the official Spotify Web API.");
+    } else if (currentPlatform === "bluesky") {
+      renderBlueskyGrid(data.channels);
+      els.resultCount.textContent = `${data.channels.length} accounts, ranked by followers`;
+      setHint(data.note || "Powered by Bluesky's fully public API.");
     } else {
       renderGrid(data.channels);
       els.resultCount.textContent = `${data.channels.length} channels, ranked by subscribers`;
@@ -228,28 +228,26 @@ function renderTwitchGrid(channels) {
   );
 }
 
-function renderSpotifyGrid(artists) {
+function renderBlueskyGrid(accounts) {
   els.grid.innerHTML = "";
-  artists.forEach((a, idx) => {
+  accounts.forEach((a, idx) => {
     const card = el("div", { class: "card" }, [
       el("div", { class: "card-top" }, [
         el("img", { class: "card-thumb", src: a.thumbnail || "", alt: "" }),
         el("div", {}, [
           el("div", { class: "card-rank" }, `#${idx + 1} IN NICHE`),
-          el("div", { class: "card-title" }, a.title || "Unknown artist"),
+          el("div", { class: "card-title" }, a.title || a.handle),
+          el("div", { style: "color: var(--muted); font-size: 0.8rem;" }, `@${a.handle}`),
         ]),
       ]),
-      a.genres && a.genres.length > 0
-        ? el("div", { style: "margin: 8px 0; color: var(--muted); font-size: 0.8rem;" }, a.genres.slice(0, 3).join(" · "))
-        : null,
       el("div", { class: "card-stats" }, [
         el("div", {}, [
           el("span", { class: "stat-num" }, abbreviate(a.followers)),
           el("span", { class: "stat-label" }, "FOLLOWERS"),
         ]),
         el("div", {}, [
-          el("span", { class: "stat-num" }, `${a.popularity}/100`),
-          el("span", { class: "stat-label" }, "POPULARITY"),
+          el("span", { class: "stat-num" }, String(a.postsInResults)),
+          el("span", { class: "stat-label" }, "POSTS ON TOPIC"),
         ]),
       ]),
     ]);

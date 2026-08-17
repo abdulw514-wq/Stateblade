@@ -164,7 +164,7 @@ a { color: inherit; }
   color: #14110a;
 }
 .platform-btn[data-platform="twitch"].active { background: #A970FF; color: #14110a; }
-.platform-btn[data-platform="spotify"].active { background: #1DB954; color: #0a1a0d; }
+.platform-btn[data-platform="bluesky"].active { background: #1185FE; color: #06122a; }
 
 .live-badge {
   display: inline-flex;

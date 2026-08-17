@@ -16,8 +16,8 @@ export default {
     if (url.pathname === "/api/twitch-search") {
       return handleTwitchSearch(request, env, ctx);
     }
-    if (url.pathname === "/api/spotify-search") {
-      return handleSpotifySearch(request, env, ctx);
+    if (url.pathname === "/api/bluesky-search") {
+      return handleBlueskySearch(request, env, ctx);
     }
 
     // Not an API route — serve the static site
@@ -346,10 +346,12 @@ async function getTwitchToken(env, ctx) {
   return data.access_token;
 }
 
-// ---------- /api/spotify-search?q=keyword ----------
-// Spotify's artist object publicly exposes follower counts and a 0-100
-// popularity score, so this ranks similarly to the YouTube view.
-async function handleSpotifySearch(request, env, ctx) {
+// ---------- /api/bluesky-search?q=keyword ----------
+// Bluesky's public API needs no auth at all for search — genuinely open.
+// We search posts matching the keyword, then group by author and rank by
+// how many matching posts + total engagement (likes+reposts) each author has,
+// since Bluesky doesn't expose a "search accounts by topic" endpoint directly.
+async function handleBlueskySearch(request, env, ctx) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
 
@@ -360,89 +362,61 @@ async function handleSpotifySearch(request, env, ctx) {
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
-  if (!env.SPOTIFY_CLIENT_ID || !env.SPOTIFY_CLIENT_SECRET) {
-    return json(
-      { error: "Server is missing SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
-      500
-    );
-  }
-
   try {
-    const token = await getSpotifyToken(env, ctx);
-
-    const searchUrl = new URL("https://api.spotify.com/v1/search");
+    const searchUrl = new URL("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts");
     searchUrl.searchParams.set("q", q);
-    searchUrl.searchParams.set("type", "artist");
-    searchUrl.searchParams.set("limit", "20");
+    searchUrl.searchParams.set("limit", "50");
+    searchUrl.searchParams.set("sort", "top");
 
-    const searchRes = await fetch(searchUrl.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const searchData = await searchRes.json();
+    const res = await fetch(searchUrl.toString());
+    const data = await res.json();
 
-    if (!searchRes.ok) {
-      return json({ error: searchData?.error?.message || "Spotify search failed." }, searchRes.status);
+    if (!res.ok) {
+      return json({ error: data?.message || "Bluesky search failed." }, res.status);
     }
 
-    const items = searchData.artists?.items || [];
+    const posts = data.posts || [];
 
-    const artists = items
-      .map((a) => ({
-        id: a.id,
-        title: a.name,
-        thumbnail: a.images?.[1]?.url || a.images?.[0]?.url || "",
-        followers: safeInt(a.followers?.total),
-        popularity: safeInt(a.popularity),
-        genres: a.genres || [],
-        url: a.external_urls?.spotify || null,
-      }))
-      .sort((a, b) => b.followers - a.followers);
+    // Group posts by author, tallying engagement
+    const byAuthor = new Map();
+    for (const post of posts) {
+      const author = post.author;
+      if (!author?.did) continue;
 
-    const result = json({ query: q, channels: artists });
+      const engagement =
+        safeInt(post.likeCount) + safeInt(post.repostCount) + safeInt(post.replyCount);
+
+      if (!byAuthor.has(author.did)) {
+        byAuthor.set(author.did, {
+          id: author.did,
+          title: author.displayName || author.handle,
+          handle: author.handle,
+          thumbnail: author.avatar || "",
+          followers: safeInt(author.followersCount),
+          postsInResults: 0,
+          totalEngagement: 0,
+          url: `https://bsky.app/profile/${author.handle}`,
+        });
+      }
+      const entry = byAuthor.get(author.did);
+      entry.postsInResults += 1;
+      entry.totalEngagement += engagement;
+    }
+
+    const channels = [...byAuthor.values()]
+      .sort((a, b) => b.followers - a.followers || b.totalEngagement - a.totalEngagement)
+      .slice(0, 20);
+
+    const result = json({
+      query: q,
+      channels,
+      note: "Ranked by follower count among accounts posting about this topic, via Bluesky's fully public API.",
+    });
     ctx.waitUntil(cache.put(cacheKey, result.clone()));
     return result;
   } catch (err) {
     return json({ error: "Unexpected server error.", detail: String(err) }, 500);
   }
-}
-
-// Fetches (and edge-caches) a Spotify access token via client_credentials.
-// Tokens last 1 hour; we cache for 50 minutes to stay safely within that.
-async function getSpotifyToken(env, ctx) {
-  const cache = caches.default;
-  const tokenCacheKey = new Request("https://internal.stateblade/spotify-token");
-
-  const cached = await cache.match(tokenCacheKey);
-  if (cached) {
-    const data = await cached.json();
-    return data.access_token;
-  }
-
-  const basicAuth = btoa(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`);
-
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-  });
-  const data = await res.json();
-
-  if (!res.ok || !data.access_token) {
-    throw new Error(data?.error_description || "Failed to obtain Spotify access token.");
-  }
-
-  const tokenResponse = new Response(JSON.stringify(data), {
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=3000", // 50 minutes
-    },
-  });
-  ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
-
-  return data.access_token;
 }
 
 // A simple, transparent heuristic grade (SocialBlade-style A+ to C)
