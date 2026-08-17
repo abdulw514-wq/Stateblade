@@ -368,10 +368,12 @@ async function getTwitchToken(env, ctx, { forceRefresh = false } = {}) {
 }
 
 // ---------- /api/bluesky-search?q=keyword ----------
-// Bluesky's public API needs no auth at all for search — genuinely open.
-// Search results only include a "basic" author profile (no follower count),
-// so we do a second step: fetch full profiles for the top candidate authors
-// to get real follower counts, same two-step pattern as the YouTube handler.
+// Bluesky's edge blocks anonymous requests from cloud/datacenter IPs
+// (including Cloudflare Workers) as a bot-prevention measure — even though
+// the API is nominally "public." So we authenticate with a lightweight App
+// Password (not the account's real password) to get past that, same
+// two-step pattern as before: search posts, then fetch real follower counts
+// for the top candidate authors.
 async function handleBlueskySearch(request, env, ctx) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
@@ -383,20 +385,35 @@ async function handleBlueskySearch(request, env, ctx) {
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
-  const bskyHeaders = {
-    Accept: "application/json",
-    "User-Agent": "StateBlade/1.0 (+https://stateblade.com)",
-  };
+  if (!env.BLUESKY_HANDLE || !env.BLUESKY_APP_PASSWORD) {
+    return json(
+      { error: "Server is missing BLUESKY_HANDLE / BLUESKY_APP_PASSWORD. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
+      500
+    );
+  }
 
   try {
+    let token = await getBlueskySession(env, ctx);
+    const authHeaders = () => ({
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    });
+
     // Step 1: search posts matching the keyword
-    const searchUrl = new URL("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts");
+    const searchUrl = new URL("https://bsky.social/xrpc/app.bsky.feed.searchPosts");
     searchUrl.searchParams.set("q", q);
     searchUrl.searchParams.set("limit", "50");
 
-    const searchRes = await fetch(searchUrl.toString(), { headers: bskyHeaders });
-    const searchBodyText = await searchRes.text();
+    let searchRes = await fetch(searchUrl.toString(), { headers: authHeaders() });
 
+    // Self-heal: if the cached session token is stale/invalid, force a fresh
+    // login and retry once before giving up.
+    if (searchRes.status === 401 || searchRes.status === 403) {
+      token = await getBlueskySession(env, ctx, { forceRefresh: true });
+      searchRes = await fetch(searchUrl.toString(), { headers: authHeaders() });
+    }
+
+    const searchBodyText = await searchRes.text();
     if (!searchRes.ok) {
       return json(
         { error: `Bluesky search failed (${searchRes.status}).`, detail: searchBodyText.slice(0, 300) },
@@ -448,10 +465,10 @@ async function handleBlueskySearch(request, env, ctx) {
 
     let followerMap = new Map();
     if (candidates.length > 0) {
-      const profilesUrl = new URL("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles");
+      const profilesUrl = new URL("https://bsky.social/xrpc/app.bsky.actor.getProfiles");
       candidates.forEach((c) => profilesUrl.searchParams.append("actors", c.did));
 
-      const profilesRes = await fetch(profilesUrl.toString(), { headers: bskyHeaders });
+      const profilesRes = await fetch(profilesUrl.toString(), { headers: authHeaders() });
       if (profilesRes.ok) {
         const profilesData = await profilesRes.json();
         followerMap = new Map(
@@ -478,13 +495,56 @@ async function handleBlueskySearch(request, env, ctx) {
     const result = json({
       query: q,
       channels,
-      note: "Ranked by follower count among accounts posting about this topic, via Bluesky's fully public API.",
+      note: "Ranked by follower count among accounts posting about this topic, via the Bluesky API.",
     });
     ctx.waitUntil(cache.put(cacheKey, result.clone()));
     return result;
   } catch (err) {
     return json({ error: "Unexpected server error while querying Bluesky.", detail: String(err?.message || err) }, 500);
   }
+}
+
+// Logs into Bluesky via an App Password (com.atproto.server.createSession)
+// and caches the resulting access token. Sessions are valid for a couple
+// hours; we cache for 90 minutes to stay safely within that. Pass
+// forceRefresh to bypass a stale cached token (e.g. after a 401/403).
+async function getBlueskySession(env, ctx, { forceRefresh = false } = {}) {
+  const cache = caches.default;
+  const sessionCacheKey = new Request("https://internal.stateblade/bluesky-session");
+
+  if (forceRefresh) {
+    await cache.delete(sessionCacheKey);
+  } else {
+    const cached = await cache.match(sessionCacheKey);
+    if (cached) {
+      const data = await cached.json();
+      return data.accessJwt;
+    }
+  }
+
+  const res = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      identifier: env.BLUESKY_HANDLE,
+      password: env.BLUESKY_APP_PASSWORD,
+    }),
+  });
+  const data = await res.json();
+
+  if (!res.ok || !data.accessJwt) {
+    throw new Error(data?.message || "Failed to log in to Bluesky. Check BLUESKY_HANDLE and BLUESKY_APP_PASSWORD.");
+  }
+
+  const sessionResponse = new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=5400", // 90 minutes
+    },
+  });
+  ctx.waitUntil(cache.put(sessionCacheKey, sessionResponse));
+
+  return data.accessJwt;
 }
 
 // A simple, transparent heuristic grade (SocialBlade-style A+ to C)
