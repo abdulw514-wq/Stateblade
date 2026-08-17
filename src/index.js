@@ -241,23 +241,39 @@ async function handleTwitchSearch(request, env, ctx) {
   }
 
   try {
-    const token = await getTwitchToken(env, ctx);
+    let token = await getTwitchToken(env, ctx);
 
     // Step 1: search channels matching the keyword
     const searchUrl = new URL("https://api.twitch.tv/helix/search/channels");
     searchUrl.searchParams.set("query", q);
     searchUrl.searchParams.set("first", "20");
 
-    const searchRes = await fetch(searchUrl.toString(), {
+    let searchRes = await fetch(searchUrl.toString(), {
       headers: {
         "Client-Id": env.TWITCH_CLIENT_ID,
         Authorization: `Bearer ${token}`,
       },
     });
+
+    // If the cached token is stale/invalid (e.g. secret was rotated since it
+    // was cached), force a fresh one and retry once before giving up.
+    if (searchRes.status === 401) {
+      token = await getTwitchToken(env, ctx, { forceRefresh: true });
+      searchRes = await fetch(searchUrl.toString(), {
+        headers: {
+          "Client-Id": env.TWITCH_CLIENT_ID,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+
     const searchData = await searchRes.json();
 
     if (!searchRes.ok) {
-      return json({ error: searchData?.message || "Twitch search failed." }, searchRes.status);
+      return json(
+        { error: searchData?.message || `Twitch search failed (${searchRes.status}).`, detail: JSON.stringify(searchData).slice(0, 300) },
+        searchRes.status
+      );
     }
 
     const items = searchData.data || [];
@@ -312,15 +328,20 @@ async function handleTwitchSearch(request, env, ctx) {
 
 // Fetches (and edge-caches) a Twitch app access token via client_credentials.
 // Tokens last ~60 days; we cache ours for 12 hours at a time to stay safe
-// and simple, refreshing well before real expiry.
-async function getTwitchToken(env, ctx) {
+// and simple, refreshing well before real expiry. Pass forceRefresh to
+// bypass a stale cached token (e.g. after a 401 from a rotated secret).
+async function getTwitchToken(env, ctx, { forceRefresh = false } = {}) {
   const cache = caches.default;
   const tokenCacheKey = new Request("https://internal.stateblade/twitch-token");
 
-  const cached = await cache.match(tokenCacheKey);
-  if (cached) {
-    const data = await cached.json();
-    return data.access_token;
+  if (forceRefresh) {
+    await cache.delete(tokenCacheKey);
+  } else {
+    const cached = await cache.match(tokenCacheKey);
+    if (cached) {
+      const data = await cached.json();
+      return data.access_token;
+    }
   }
 
   const tokenUrl = new URL("https://id.twitch.tv/oauth2/token");
@@ -348,9 +369,9 @@ async function getTwitchToken(env, ctx) {
 
 // ---------- /api/bluesky-search?q=keyword ----------
 // Bluesky's public API needs no auth at all for search — genuinely open.
-// We search posts matching the keyword, then group by author and rank by
-// how many matching posts + total engagement (likes+reposts) each author has,
-// since Bluesky doesn't expose a "search accounts by topic" endpoint directly.
+// Search results only include a "basic" author profile (no follower count),
+// so we do a second step: fetch full profiles for the top candidate authors
+// to get real follower counts, same two-step pattern as the YouTube handler.
 async function handleBlueskySearch(request, env, ctx) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
@@ -362,40 +383,57 @@ async function handleBlueskySearch(request, env, ctx) {
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
+  const bskyHeaders = {
+    Accept: "application/json",
+    "User-Agent": "StateBlade/1.0 (+https://stateblade.com)",
+  };
+
   try {
+    // Step 1: search posts matching the keyword
     const searchUrl = new URL("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts");
     searchUrl.searchParams.set("q", q);
     searchUrl.searchParams.set("limit", "50");
-    searchUrl.searchParams.set("sort", "top");
 
-    const res = await fetch(searchUrl.toString());
-    const data = await res.json();
+    const searchRes = await fetch(searchUrl.toString(), { headers: bskyHeaders });
+    const searchBodyText = await searchRes.text();
 
-    if (!res.ok) {
-      return json({ error: data?.message || "Bluesky search failed." }, res.status);
+    if (!searchRes.ok) {
+      return json(
+        { error: `Bluesky search failed (${searchRes.status}).`, detail: searchBodyText.slice(0, 300) },
+        searchRes.status
+      );
     }
 
-    const posts = data.posts || [];
+    let searchData;
+    try {
+      searchData = JSON.parse(searchBodyText);
+    } catch {
+      return json({ error: "Bluesky returned an unexpected (non-JSON) response.", detail: searchBodyText.slice(0, 300) }, 502);
+    }
 
-    // Group posts by author, tallying engagement
+    const posts = searchData.posts || [];
+    if (posts.length === 0) {
+      const empty = json({ query: q, channels: [] });
+      ctx.waitUntil(cache.put(cacheKey, empty.clone()));
+      return empty;
+    }
+
+    // Tally posts + engagement per author from the basic profiles in results
     const byAuthor = new Map();
     for (const post of posts) {
       const author = post.author;
       if (!author?.did) continue;
 
-      const engagement =
-        safeInt(post.likeCount) + safeInt(post.repostCount) + safeInt(post.replyCount);
+      const engagement = safeInt(post.likeCount) + safeInt(post.repostCount) + safeInt(post.replyCount);
 
       if (!byAuthor.has(author.did)) {
         byAuthor.set(author.did, {
-          id: author.did,
-          title: author.displayName || author.handle,
+          did: author.did,
           handle: author.handle,
+          title: author.displayName || author.handle,
           thumbnail: author.avatar || "",
-          followers: safeInt(author.followersCount),
           postsInResults: 0,
           totalEngagement: 0,
-          url: `https://bsky.app/profile/${author.handle}`,
         });
       }
       const entry = byAuthor.get(author.did);
@@ -403,9 +441,39 @@ async function handleBlueskySearch(request, env, ctx) {
       entry.totalEngagement += engagement;
     }
 
-    const channels = [...byAuthor.values()]
-      .sort((a, b) => b.followers - a.followers || b.totalEngagement - a.totalEngagement)
-      .slice(0, 20);
+    // Take the top 25 candidates by engagement to look up real follower counts
+    const candidates = [...byAuthor.values()]
+      .sort((a, b) => b.totalEngagement - a.totalEngagement)
+      .slice(0, 25);
+
+    let followerMap = new Map();
+    if (candidates.length > 0) {
+      const profilesUrl = new URL("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles");
+      candidates.forEach((c) => profilesUrl.searchParams.append("actors", c.did));
+
+      const profilesRes = await fetch(profilesUrl.toString(), { headers: bskyHeaders });
+      if (profilesRes.ok) {
+        const profilesData = await profilesRes.json();
+        followerMap = new Map(
+          (profilesData.profiles || []).map((p) => [p.did, safeInt(p.followersCount)])
+        );
+      }
+      // If this second call fails, we just fall back to 0 followers below
+      // rather than failing the whole request.
+    }
+
+    const channels = candidates
+      .map((c) => ({
+        id: c.did,
+        title: c.title,
+        handle: c.handle,
+        thumbnail: c.thumbnail,
+        followers: followerMap.get(c.did) || 0,
+        postsInResults: c.postsInResults,
+        totalEngagement: c.totalEngagement,
+        url: `https://bsky.app/profile/${c.handle}`,
+      }))
+      .sort((a, b) => b.followers - a.followers || b.totalEngagement - a.totalEngagement);
 
     const result = json({
       query: q,
@@ -415,7 +483,7 @@ async function handleBlueskySearch(request, env, ctx) {
     ctx.waitUntil(cache.put(cacheKey, result.clone()));
     return result;
   } catch (err) {
-    return json({ error: "Unexpected server error.", detail: String(err) }, 500);
+    return json({ error: "Unexpected server error while querying Bluesky.", detail: String(err?.message || err) }, 500);
   }
 }
 
