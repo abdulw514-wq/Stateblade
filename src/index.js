@@ -13,6 +13,9 @@ export default {
     if (url.pathname === "/api/channel") {
       return handleChannel(request, env, ctx);
     }
+    if (url.pathname === "/api/twitch-search") {
+      return handleTwitchSearch(request, env, ctx);
+    }
 
     // Not an API route — serve the static site
     return env.ASSETS.fetch(request);
@@ -210,6 +213,134 @@ async function handleChannel(request, env, ctx) {
   } catch (err) {
     return json({ error: "Unexpected server error.", detail: String(err) }, 500);
   }
+}
+
+// ---------- /api/twitch-search?q=keyword ----------
+// Twitch doesn't publicly expose follower counts (locked down since 2023 —
+// it now requires the channel owner's own token). So instead we rank by
+// live viewer count where available, which is public data via app tokens.
+async function handleTwitchSearch(request, env, ctx) {
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim();
+
+  if (!q) return json({ error: "Missing query parameter 'q'." }, 400);
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
+    return json(
+      { error: "Server is missing TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
+      500
+    );
+  }
+
+  try {
+    const token = await getTwitchToken(env, ctx);
+
+    // Step 1: search channels matching the keyword
+    const searchUrl = new URL("https://api.twitch.tv/helix/search/channels");
+    searchUrl.searchParams.set("query", q);
+    searchUrl.searchParams.set("first", "20");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: {
+        "Client-Id": env.TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const searchData = await searchRes.json();
+
+    if (!searchRes.ok) {
+      return json({ error: searchData?.message || "Twitch search failed." }, searchRes.status);
+    }
+
+    const items = searchData.data || [];
+    if (items.length === 0) {
+      const empty = json({ query: q, channels: [] });
+      ctx.waitUntil(cache.put(cacheKey, empty.clone()));
+      return empty;
+    }
+
+    // Step 2: pull live viewer counts for any of those channels currently live
+    const userIds = items.map((c) => c.id).filter(Boolean);
+    const streamsUrl = new URL("https://api.twitch.tv/helix/streams");
+    userIds.slice(0, 100).forEach((id) => streamsUrl.searchParams.append("user_id", id));
+
+    const streamsRes = await fetch(streamsUrl.toString(), {
+      headers: {
+        "Client-Id": env.TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const streamsData = await streamsRes.json();
+    const liveByUserId = new Map(
+      (streamsData.data || []).map((s) => [s.user_id, s])
+    );
+
+    const channels = items
+      .map((c) => {
+        const live = liveByUserId.get(c.id);
+        return {
+          id: c.id,
+          title: c.display_name,
+          thumbnail: c.thumbnail_url,
+          game: c.game_name || null,
+          isLive: !!c.is_live,
+          viewers: live ? safeInt(live.viewer_count) : 0,
+          startedAt: live ? live.started_at : null,
+          tags: c.tags || [],
+        };
+      })
+      .sort((a, b) => {
+        if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+        return b.viewers - a.viewers;
+      });
+
+    const result = json({ query: q, channels, note: "Twitch doesn't expose follower counts publicly — ranked by current live viewers instead." });
+    ctx.waitUntil(cache.put(cacheKey, result.clone()));
+    return result;
+  } catch (err) {
+    return json({ error: "Unexpected server error.", detail: String(err) }, 500);
+  }
+}
+
+// Fetches (and edge-caches) a Twitch app access token via client_credentials.
+// Tokens last ~60 days; we cache ours for 12 hours at a time to stay safe
+// and simple, refreshing well before real expiry.
+async function getTwitchToken(env, ctx) {
+  const cache = caches.default;
+  const tokenCacheKey = new Request("https://internal.stateblade/twitch-token");
+
+  const cached = await cache.match(tokenCacheKey);
+  if (cached) {
+    const data = await cached.json();
+    return data.access_token;
+  }
+
+  const tokenUrl = new URL("https://id.twitch.tv/oauth2/token");
+  tokenUrl.searchParams.set("client_id", env.TWITCH_CLIENT_ID);
+  tokenUrl.searchParams.set("client_secret", env.TWITCH_CLIENT_SECRET);
+  tokenUrl.searchParams.set("grant_type", "client_credentials");
+
+  const res = await fetch(tokenUrl.toString(), { method: "POST" });
+  const data = await res.json();
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data?.message || "Failed to obtain Twitch access token.");
+  }
+
+  const tokenResponse = new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=43200", // 12 hours
+    },
+  });
+  ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
+
+  return data.access_token;
 }
 
 // A simple, transparent heuristic grade (SocialBlade-style A+ to C)

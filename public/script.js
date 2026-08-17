@@ -10,7 +10,27 @@ const els = {
   detailContent: document.getElementById("detailContent"),
   backBtn: document.getElementById("backBtn"),
   ticker: document.getElementById("tickerTrack"),
+  platformToggle: document.getElementById("platformToggle"),
 };
+
+let currentPlatform = "youtube";
+
+els.platformToggle.addEventListener("click", (e) => {
+  const btn = e.target.closest(".platform-btn");
+  if (!btn) return;
+  currentPlatform = btn.dataset.platform;
+
+  els.platformToggle.querySelectorAll(".platform-btn").forEach((b) => {
+    const active = b === btn;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+
+  els.input.placeholder =
+    currentPlatform === "twitch"
+      ? "Try “speedrunning”, “just chatting”, “valorant”…"
+      : "Try “personal finance”, “home workouts”, “retro gaming”…";
+});
 
 const numberFmt = new Intl.NumberFormat("en-US");
 
@@ -68,8 +88,10 @@ async function runSearch(q) {
   els.grid.appendChild(spinnerRow());
   els.results.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  const endpoint = currentPlatform === "twitch" ? "/api/twitch-search" : "/api/search";
+
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -85,9 +107,16 @@ async function runSearch(q) {
       return;
     }
 
-    renderGrid(data.channels);
-    els.resultCount.textContent = `${data.channels.length} channels, ranked by subscribers`;
-    setHint("Powered by the official YouTube Data API — real numbers, updated every few hours.");
+    if (currentPlatform === "twitch") {
+      renderTwitchGrid(data.channels);
+      const liveCount = data.channels.filter((c) => c.isLive).length;
+      els.resultCount.textContent = `${data.channels.length} channels · ${liveCount} live now`;
+      setHint(data.note || "Powered by the official Twitch API.");
+    } else {
+      renderGrid(data.channels);
+      els.resultCount.textContent = `${data.channels.length} channels, ranked by subscribers`;
+      setHint("Powered by the official YouTube Data API — real numbers, updated every few hours.");
+    }
   } catch (err) {
     showGridError("Couldn't reach the server. Check your connection and try again.");
     setHint("");
@@ -146,6 +175,43 @@ function renderGrid(channels) {
   });
 
   // Free-tier ad slot — wire up AdSense here once your site is approved.
+  els.grid.parentElement.appendChild(
+    el("div", { class: "ad-slot" }, "AD SLOT — connect AdSense after approval")
+  );
+}
+
+function renderTwitchGrid(channels) {
+  els.grid.innerHTML = "";
+  channels.forEach((c, idx) => {
+    const card = el("div", { class: "card" }, [
+      el("div", { class: "card-top" }, [
+        el("img", { class: "card-thumb", src: c.thumbnail || "", alt: "" }),
+        el("div", {}, [
+          el("div", { class: "card-rank" }, `#${idx + 1} IN NICHE`),
+          el("div", { class: "card-title" }, c.title || "Untitled channel"),
+        ]),
+      ]),
+      el(
+        "div",
+        { style: "margin: 8px 0;" },
+        c.isLive
+          ? el("span", { class: "live-badge" }, "LIVE")
+          : el("span", { class: "offline-badge" }, "OFFLINE")
+      ),
+      el("div", { class: "card-stats" }, [
+        el("div", {}, [
+          el("span", { class: "stat-num" }, c.isLive ? abbreviate(c.viewers) : "—"),
+          el("span", { class: "stat-label" }, "VIEWERS NOW"),
+        ]),
+        el("div", {}, [
+          el("span", { class: "stat-num" }, c.game || "—"),
+          el("span", { class: "stat-label" }, "CATEGORY"),
+        ]),
+      ]),
+    ]);
+    els.grid.appendChild(card);
+  });
+
   els.grid.parentElement.appendChild(
     el("div", { class: "ad-slot" }, "AD SLOT — connect AdSense after approval")
   );
