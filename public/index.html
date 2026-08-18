@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>StateBlade — Know the state of any channel</title>
-<meta name="description" content="Free YouTube channel and keyword research. See who's winning any niche, ranked by real subscriber and view data." />
+
+<!-- TIER 1: "youtube niche research tool" + "youtube channel stats checker" in title -->
+<title>Free YouTube Niche Research Tool & Channel Stats Checker — StateBlade</title>
+<meta name="description" content="Find top YouTube channels in any niche — instantly. StateBlade is a free YouTube channel stats checker that ranks competitors by subscribers, views, upload pace, and the exact tags they use to rank. Also supports Twitch and Bluesky." />
 
 <!-- Canonical -->
 <link rel="canonical" href="https://stateblade.com/" />
@@ -15,8 +17,8 @@
 <!-- Open Graph -->
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://stateblade.com/" />
-<meta property="og:title" content="StateBlade — Know the state of any channel" />
-<meta property="og:description" content="Free YouTube channel and keyword research. See who's winning any niche, ranked by real subscriber and view data." />
+<meta property="og:title" content="Free YouTube Niche Research Tool & Channel Stats Checker — StateBlade" />
+<meta property="og:description" content="Find top YouTube channels in any niche — instantly. StateBlade ranks competitors by subscribers, views, and the exact tags they use to rank. 100% free." />
 <meta property="og:image" content="https://stateblade.com/og-image.svg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -25,8 +27,8 @@
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:url" content="https://stateblade.com/" />
-<meta name="twitter:title" content="StateBlade — Know the state of any channel" />
-<meta name="twitter:description" content="Free YouTube channel and keyword research. See who's winning any niche, ranked by real subscriber and view data." />
+<meta name="twitter:title" content="Free YouTube Niche Research Tool & Channel Stats Checker — StateBlade" />
+<meta name="twitter:description" content="Find top YouTube channels in any niche. StateBlade ranks competitors by subscribers, views, and the exact tags they use to rank. 100% free." />
 <meta name="twitter:image" content="https://stateblade.com/og-image.svg" />
 
 <!-- Structured Data: WebApplication -->
@@ -36,7 +38,7 @@
   "@type": "WebApplication",
   "name": "StateBlade",
   "url": "https://stateblade.com/",
-  "description": "Free YouTube channel and keyword research tool. See who's winning any niche, ranked by real subscriber and view data.",
+  "description": "Free YouTube niche research tool and channel stats checker. Find who's winning any niche on YouTube, Twitch, or Bluesky — ranked by real subscriber and view data.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "All",
   "offers": {
@@ -48,14 +50,80 @@
     "@type": "Organization",
     "name": "StateBlade",
     "url": "https://stateblade.com/"
-  }
+  },
+  "featureList": [
+    "YouTube channel stats checker",
+    "YouTube niche research tool",
+    "Find YouTube channels by keyword",
+    "YouTube competitor analysis",
+    "Twitch channel search by keyword",
+    "Bluesky account search by topic"
+  ]
+}
+</script>
+
+<!-- Structured Data: FAQPage (targets People Also Ask) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is StateBlade?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "StateBlade is a free YouTube niche research tool and channel stats checker. Type any topic and it instantly ranks the top YouTube channels competing in that niche by subscribers, total views, and upload frequency — so you can see who's winning and what keywords they rank for."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I find YouTube channels by keyword for free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Enter any keyword or topic into StateBlade's search box — like 'personal finance' or 'home workouts' — and it queries the official YouTube Data API to surface the top channels ranking for that term. Results are sorted by subscriber count and view totals, giving you a real picture of niche dominance."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I check YouTube channel subscriber counts with StateBlade?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. StateBlade is a free YouTube channel subscriber rank checker. Every result shows live subscriber counts, total view stats, and upload pace — pulled directly from the YouTube Data API, updated every few hours."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I see what tags a YouTube channel is using?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Click any channel in StateBlade's results to open the channel detail view. It shows the exact tags used across that channel's top videos — a ready-made keyword list for your own content strategy."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is StateBlade a free alternative to SocialBlade?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "StateBlade is a free, independent YouTube research tool focused on niche and keyword discovery. Unlike SocialBlade which tracks individual channels over time, StateBlade lets you search by topic and instantly compare every channel competing in that space — making it ideal for niche research and competitor analysis."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does StateBlade work for Twitch and Bluesky too?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. StateBlade supports Twitch channel search by keyword and Bluesky account search by topic in addition to YouTube. Switch platforms using the toggle above the search bar."
+      }
+    }
+  ]
 }
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 
@@ -66,8 +134,12 @@
         <span class="brand-name">State<span class="accent">Blade</span></span>
       </a>
       <nav class="topnav">
-        <a href="#search">Search</a>
-        <a href="#how">How it works</a>
+        <a href="/#search">Search</a>
+        <a href="/youtube/">YouTube</a>
+        <a href="/twitch/">Twitch</a>
+        <a href="/bluesky/">Bluesky</a>
+        <a href="/blog/">Blog</a>
+        <a href="/vs-socialblade/">vs SocialBlade</a>
       </nav>
     </div>
   </header>
@@ -77,13 +149,15 @@
   </div>
 
   <main>
-    <section class="hero wrap">
-      <p class="eyebrow">FREE CHANNEL &amp; KEYWORD INTELLIGENCE</p>
-      <h1>Find out who's really<br>winning your niche.</h1>
+    <section class="hero wrap" id="search">
+      <p class="eyebrow">FREE YOUTUBE NICHE RESEARCH TOOL</p>
+      <!-- TIER 1: "who is winning youtube niche" as hero headline -->
+      <h1>Find out who's winning<br>your YouTube niche.</h1>
+      <!-- TIER 1: "youtube niche research tool" + "find youtube channels by keyword free" in lede -->
       <p class="lede">
-        Type any topic. StateBlade pulls live YouTube data and ranks the channels
-        already dominating it — subscribers, views, upload pace, and the exact
-        tags they're using to rank.
+        The free YouTube channel stats checker built for creators. Type any topic and StateBlade instantly
+        ranks the channels dominating that niche — subscribers, views, upload pace, and the exact
+        tags they use to rank. Works for Twitch and Bluesky too.
       </p>
 
       <div class="platform-toggle" id="platformToggle" role="tablist" aria-label="Platform">
@@ -96,7 +170,7 @@
         <input
           id="searchInput"
           type="text"
-          placeholder="Try "personal finance", "home workouts", "retro gaming"…"
+          placeholder="Try &quot;personal finance&quot;, &quot;home workouts&quot;, &quot;retro gaming&quot;…"
           autocomplete="off"
           required
         />
@@ -118,34 +192,125 @@
       <div id="detailContent"></div>
     </section>
 
+    <!-- HOW IT WORKS -->
     <section id="how" class="how wrap">
       <p class="eyebrow">HOW IT WORKS</p>
       <div class="how-grid">
         <div class="how-card">
           <span class="how-num">01</span>
-          <h3>Search a keyword</h3>
-          <p>We query the YouTube Data API directly for channels matching your topic — no scraping, no guesswork.</p>
+          <h3>Search any keyword or niche</h3>
+          <p>We query the YouTube Data API directly for channels matching your topic — no scraping, no guesswork. Works on YouTube, Twitch, and Bluesky.</p>
         </div>
         <div class="how-card">
           <span class="how-num">02</span>
-          <h3>See the real ranking</h3>
-          <p>Channels are sorted by live subscriber and view counts, with a broadcast-style grade for reach and engagement.</p>
+          <h3>See the real channel ranking</h3>
+          <p>Channels are sorted by live subscriber and view counts, with a broadcast-style grade for reach and engagement — your free YouTube channel stats checker.</p>
         </div>
         <div class="how-card">
           <span class="how-num">03</span>
-          <h3>Steal the tags</h3>
-          <p>Open any channel to see the exact tags its top videos use — your shortlist of keywords worth targeting.</p>
+          <h3>Steal the tags your competitors use</h3>
+          <p>Open any channel to see the exact tags its top videos use — your shortlist of keywords worth targeting. Free YouTube competitor research in seconds.</p>
         </div>
       </div>
     </section>
+
+    <!-- PLATFORM LINKS -->
+    <section class="how wrap" style="padding-top:0;">
+      <p class="eyebrow">SUPPORTED PLATFORMS</p>
+      <div class="how-grid">
+        <div class="how-card">
+          <span class="how-num" style="font-size:1.4rem;">▶</span>
+          <h3><a href="/youtube/" style="color:inherit;text-decoration:none;">YouTube Channel Research</a></h3>
+          <p>Find top YouTube channels by keyword. Check subscriber counts, view stats, and the tags driving their rankings.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num" style="font-size:1.4rem;">🎮</span>
+          <h3><a href="/twitch/" style="color:inherit;text-decoration:none;">Twitch Channel Search</a></h3>
+          <p>Search Twitch channels by keyword or game. Find who's dominating any category and what makes them rank.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num" style="font-size:1.4rem;">🦋</span>
+          <h3><a href="/bluesky/" style="color:inherit;text-decoration:none;">Bluesky Account Search</a></h3>
+          <p>Search Bluesky accounts by topic. Find the most active voices in any community or interest area.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ SECTION (targets People Also Ask) -->
+    <section class="faq-section wrap" id="faq">
+      <p class="eyebrow">FREQUENTLY ASKED QUESTIONS</p>
+      <h2>Everything about StateBlade</h2>
+
+      <div class="faq-item">
+        <p class="faq-q">What is StateBlade?</p>
+        <p class="faq-a">StateBlade is a free YouTube niche research tool and channel stats checker. Type any topic and it instantly ranks the top YouTube channels competing in that niche by subscribers, total views, and upload frequency — so you can see who's winning and what keywords they rank for.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">How do I find YouTube channels by keyword for free?</p>
+        <p class="faq-a">Enter any keyword or topic into StateBlade's search box — like "personal finance" or "home workouts" — and it queries the official YouTube Data API to surface the top channels ranking for that term. Results are sorted by subscriber count and view totals, giving you a real picture of niche dominance.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Can I check YouTube channel subscriber counts with StateBlade?</p>
+        <p class="faq-a">Yes. StateBlade is a free YouTube channel subscriber rank checker. Every result shows live subscriber counts, total view stats, and upload pace — pulled directly from the YouTube Data API, updated every few hours.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">How do I see what tags a YouTube channel is using?</p>
+        <p class="faq-a">Click any channel in StateBlade's results to open the channel detail view. It shows the exact tags used across that channel's top videos — a ready-made keyword list for your own content strategy.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Is StateBlade a free alternative to SocialBlade?</p>
+        <p class="faq-a">StateBlade is a free, independent YouTube research tool focused on niche and keyword discovery. Unlike SocialBlade which tracks individual channels over time, StateBlade lets you <a href="/vs-socialblade/">search by topic and instantly compare every channel competing in that space</a> — making it ideal for niche research and competitor analysis.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Does StateBlade work for Twitch and Bluesky too?</p>
+        <p class="faq-a">Yes. StateBlade supports <a href="/twitch/">Twitch channel search by keyword</a> and <a href="/bluesky/">Bluesky account search by topic</a> in addition to YouTube. Switch platforms using the toggle above the search bar.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Is StateBlade really free?</p>
+        <p class="faq-a">Yes — 100% free, no account required. StateBlade uses the official YouTube Data API with a generous free quota. There are no paywalls, no trial limits, and no hidden fees.</p>
+      </div>
+    </section>
+
+    <!-- BLOG TEASER -->
+    <section class="how wrap" style="padding-top:0; padding-bottom:80px;">
+      <p class="eyebrow">FROM THE BLOG</p>
+      <div class="how-grid">
+        <div class="how-card">
+          <h3><a href="/blog/how-to-research-youtube-niches/" style="color:var(--teal);">How to Research YouTube Niches (Free Method)</a></h3>
+          <p>A step-by-step guide to finding low-competition niches before you record a single video.</p>
+        </div>
+        <div class="how-card">
+          <h3><a href="/blog/find-youtube-channels-by-keyword/" style="color:var(--teal);">How to Find YouTube Channels by Keyword for Free</a></h3>
+          <p>The fastest way to map out competitor channels in any niche using live YouTube data.</p>
+        </div>
+        <div class="how-card">
+          <h3><a href="/blog/youtube-channel-stats-checker/" style="color:var(--teal);">Best Free YouTube Channel Stats Checkers in 2026</a></h3>
+          <p>We compare the top free tools for checking YouTube channel subscriber counts and engagement.</p>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <footer class="footer">
     <div class="wrap footer-inner">
-      <span>StateBlade — free, independent YouTube research. Not affiliated with YouTube or Google.</span>
+      <span>StateBlade — free, independent YouTube niche research tool. Not affiliated with YouTube, Google, Twitch, or Bluesky.</span>
+      <nav style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;">
+        <a href="/youtube/" style="color:var(--muted);font-size:0.85rem;">YouTube Research</a>
+        <a href="/twitch/" style="color:var(--muted);font-size:0.85rem;">Twitch Search</a>
+        <a href="/bluesky/" style="color:var(--muted);font-size:0.85rem;">Bluesky Search</a>
+        <a href="/vs-socialblade/" style="color:var(--muted);font-size:0.85rem;">vs SocialBlade</a>
+        <a href="/blog/" style="color:var(--muted);font-size:0.85rem;">Blog</a>
+      </nav>
     </div>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="/script.js"></script>
 </body>
 </html>
