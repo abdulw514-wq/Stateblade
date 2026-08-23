@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kick Channel Search by Keyword — Find Top Kick Streamers — StateBlade</title>
+<meta name="description" content="Free Kick channel search by keyword or category. Find the top Kick streamers in any niche — ranked by followers and live viewers. No account needed." />
+<link rel="canonical" href="https://stateblade.com/kick/" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://stateblade.com/kick/" />
+<meta property="og:title" content="Kick Channel Search by Keyword — StateBlade" />
+<meta property="og:description" content="Find top Kick streamers in any niche — ranked by followers and live viewers. Free, no account needed." />
+<meta property="og:image" content="https://stateblade.com/og-image.svg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Kick Channel Search by Keyword — StateBlade" />
+<meta name="twitter:description" content="Find top Kick streamers in any niche — ranked by followers and live viewers. Free." />
+<meta name="twitter:image" content="https://stateblade.com/og-image.svg" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "StateBlade — Kick Channel Search",
+  "url": "https://stateblade.com/kick/",
+  "description": "Free Kick channel search by keyword. Find the top streamers in any niche — ranked by followers and live viewers.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "All",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">▲</span>
+        <span class="brand-name">State<span class="accent">Blade</span></span>
+      </a>
+      <nav class="topnav">
+        <a href="/">Home</a>
+        <a href="/youtube/">YouTube</a>
+        <a href="/twitch/">Twitch</a>
+        <a href="/kick/">Kick</a>
+        <a href="/bluesky/">Bluesky</a>
+        <a href="/blog/">Blog</a>
+        <a href="/vs-socialblade/">vs SocialBlade</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+
+  <main>
+    <section class="hero wrap" id="search">
+      <p class="eyebrow">KICK CHANNEL SEARCH</p>
+      <h1>Find who's winning<br>on Kick.</h1>
+      <p class="lede">Free Kick channel search by keyword or category. StateBlade ranks the top Kick streamers in any niche — followers, live viewers, and activity. No account needed.</p>
+
+      <div class="platform-toggle" id="platformToggle" role="tablist" aria-label="Platform">
+        <button type="button" class="platform-btn" data-platform="youtube" role="tab" aria-selected="false">YouTube</button>
+        <button type="button" class="platform-btn" data-platform="twitch" role="tab" aria-selected="false">Twitch</button>
+        <button type="button" class="platform-btn active" data-platform="kick" role="tab" aria-selected="true">Kick</button>
+        <button type="button" class="platform-btn" data-platform="bluesky" role="tab" aria-selected="false">Bluesky</button>
+      </div>
+
+      <form id="searchForm" class="search-form">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Try &quot;valorant&quot;, &quot;just chatting&quot;, &quot;slots&quot;…"
+          autocomplete="off"
+          required
+        />
+        <button type="submit"><span>Scan niche</span></button>
+      </form>
+      <p class="hint" id="statusHint">Powered by the official Kick API — real numbers, live channel data.</p>
+    </section>
+
+    <section id="results" class="results wrap" hidden>
+      <div class="results-head">
+        <h2>State of the niche: <span id="resultQuery" class="accent-text"></span></h2>
+        <p id="resultCount" class="muted"></p>
+      </div>
+      <div id="resultsGrid" class="grid"></div>
+    </section>
+
+    <section id="detail" class="detail wrap" hidden>
+      <button id="backBtn" class="back-btn">← Back to results</button>
+      <div id="detailContent"></div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="how wrap">
+      <p class="eyebrow">HOW IT WORKS</p>
+      <div class="how-grid">
+        <div class="how-card">
+          <span class="how-num">01</span>
+          <h3>Search any keyword or category</h3>
+          <p>Type any game, topic, or category — like "valorant", "slots", or "just chatting" — and StateBlade queries the Kick API to find the top channels in that space.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">02</span>
+          <h3>See who's actually winning</h3>
+          <p>Results are ranked by follower count, with live channels surfaced first so you can see who's pulling viewers right now.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">03</span>
+          <h3>Find your entry point</h3>
+          <p>Compare follower counts across channels to find niches where the competition is real but not impossible — and spot where new streamers are growing fastest.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq-section wrap" id="faq">
+      <p class="eyebrow">FREQUENTLY ASKED QUESTIONS</p>
+      <h2>Kick channel search — FAQ</h2>
+
+      <div class="faq-item">
+        <p class="faq-q">Can I search Kick channels by keyword for free?</p>
+        <p class="faq-a">Yes. StateBlade's Kick channel search is completely free and requires no account. Type any keyword or category and get a ranked list of top Kick channels in that niche.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">What data does StateBlade show for Kick channels?</p>
+        <p class="faq-a">StateBlade shows follower counts, live viewer counts (for channels currently streaming), category/game, and whether a channel is live right now — all pulled from the official Kick API.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">Does StateBlade support YouTube and Twitch too?</p>
+        <p class="faq-a">Yes. StateBlade supports <a href="/youtube/">YouTube niche research</a>, <a href="/twitch/">Twitch channel search</a>, Kick channel search, and <a href="/bluesky/">Bluesky account search</a> — all free, all in one place.</p>
+      </div>
+
+      <div class="faq-item">
+        <p class="faq-q">How is Kick different from Twitch for streamers?</p>
+        <p class="faq-a">Kick is a newer streaming platform known for more permissive content policies and a higher revenue share for streamers (95/5 split vs Twitch's 50/50). It's grown rapidly since 2022 and has attracted many streamers looking for an alternative.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>StateBlade — free, independent niche research tool. Not affiliated with Kick, YouTube, Twitch, or Bluesky.</span>
+      <nav style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;">
+        <a href="/youtube/" style="color:var(--muted);font-size:0.85rem;">YouTube Research</a>
+        <a href="/twitch/" style="color:var(--muted);font-size:0.85rem;">Twitch Search</a>
+        <a href="/kick/" style="color:var(--muted);font-size:0.85rem;">Kick Search</a>
+        <a href="/bluesky/" style="color:var(--muted);font-size:0.85rem;">Bluesky Search</a>
+        <a href="/vs-socialblade/" style="color:var(--muted);font-size:0.85rem;">vs SocialBlade</a>
+        <a href="/blog/" style="color:var(--muted);font-size:0.85rem;">Blog</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

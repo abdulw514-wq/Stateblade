@@ -3,22 +3,26 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Twitch Channel Search by Keyword — Find Top Streamers in Any Category — StateBlade</title>
-<meta name="description" content="Free Twitch channel search by keyword or game category. Find the top streamers in any niche, compare their stats, and discover who's winning on Twitch. No account needed." />
+<title>Twitch Channel Search by Keyword — Find Top Streamers in Any Niche — StateBlade</title>
+<meta name="description" content="Free Twitch channel search by keyword. Find the top streamers in any game or category, ranked by followers and viewers. No account needed." />
 <link rel="canonical" href="https://stateblade.com/twitch/" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://stateblade.com/twitch/" />
 <meta property="og:title" content="Twitch Channel Search by Keyword — StateBlade" />
-<meta property="og:description" content="Find top Twitch streamers in any game or category. Free Twitch channel search by keyword — no account required." />
+<meta property="og:description" content="Free Twitch channel search by keyword. Find the top streamers in any game or category, ranked by followers and viewers. No account needed." />
 <meta property="og:image" content="https://stateblade.com/og-image.svg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Twitch Channel Search by Keyword — StateBlade" />
+<meta name="twitter:description" content="Free Twitch channel search by keyword. Find the top streamers in any game or category, ranked by followers and viewers. No account needed." />
+<meta name="twitter:image" content="https://stateblade.com/og-image.svg" />
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   "name": "StateBlade — Twitch Channel Search",
   "url": "https://stateblade.com/twitch/",
-  "description": "Free Twitch channel search by keyword. Find the top streamers in any game or category.",
+  "description": "Free Twitch channel search by keyword. Find the top streamers in any game or category, ranked by followers and viewers. No account needed.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "All",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
@@ -30,81 +34,83 @@
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <a class="brand" href="/"><span class="brand-mark">▲</span><span class="brand-name">State<span class="accent">Blade</span></span></a>
+      <a class="brand" href="/">
+        <span class="brand-mark">▲</span>
+        <span class="brand-name">State<span class="accent">Blade</span></span>
+      </a>
       <nav class="topnav">
-        <a href="/">Search</a>
+        <a href="/">Home</a>
         <a href="/youtube/">YouTube</a>
         <a href="/twitch/">Twitch</a>
+        <a href="/kick/">Kick</a>
         <a href="/bluesky/">Bluesky</a>
         <a href="/blog/">Blog</a>
         <a href="/vs-socialblade/">vs SocialBlade</a>
       </nav>
     </div>
   </header>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+
   <main>
-    <section class="platform-hero wrap">
-      <div class="platform-badge">🎮 Twitch</div>
-      <h1>Twitch Channel Search<br>by Keyword or Game</h1>
-      <p class="lede">Find the top Twitch streamers in any game, category, or topic. StateBlade's free Twitch channel search tool shows who's dominating any niche — no account needed.</p>
-      <a href="/?platform=twitch" class="btn" style="display:inline-block;background:var(--gold);color:#0B0E14;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;font-family:var(--font-display);font-size:1rem;">Search Twitch channels →</a>
+    <section class="hero wrap" id="search">
+      <p class="eyebrow">TWITCH CHANNEL SEARCH</p>
+      <h1>Find who's winning<br>on Twitch.</h1>
+      <p class="lede">Free Twitch channel search by keyword or game. StateBlade ranks the top streamers in any category — followers, live viewers, and activity data. No account needed.</p>
+
+      <div class="platform-toggle" id="platformToggle" role="tablist" aria-label="Platform">
+        <button type="button" class="platform-btn" data-platform="youtube" role="tab" aria-selected="false">YouTube</button>
+        <button type="button" class="platform-btn active" data-platform="twitch" role="tab" aria-selected="true">Twitch</button>
+        <button type="button" class="platform-btn" data-platform="bluesky" role="tab" aria-selected="false">Bluesky</button>
+      </div>
+
+      <form id="searchForm" class="search-form">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder=""
+          autocomplete="off"
+          required
+        />
+        <button type="submit"><span>Scan niche</span></button>
+      </form>
+      <p class="hint" id="statusHint">Powered by the official Twitch API — real numbers, updated regularly.</p>
     </section>
 
-    <section class="wrap blog-body" style="padding-top:48px;">
-
-      <h2>Search Twitch by keyword — free</h2>
-
-      <p>Twitch's own discovery tools are limited for competitive research. StateBlade lets you search any keyword — a game title, category, or topic — and instantly surfaces the leading streamers competing in that space.</p>
-
-      <p>Whether you're a new streamer trying to find a less-crowded game to start in, or an established creator doing competitive research, StateBlade gives you the data you need in seconds.</p>
-
-      <h2>How to find Twitch channels by keyword</h2>
-
-      <ul class="steps-list">
-        <li>Go to <a href="/">stateblade.com</a> and select the <strong>Twitch</strong> tab.</li>
-        <li>Type any keyword — a game like "Valorant", a category like "Just Chatting", or a topic like "speedrunning".</li>
-        <li>Hit Scan niche to see the top Twitch channels competing for that keyword, ranked by stats.</li>
-        <li>Compare streamers by viewer counts, follower numbers, and activity frequency.</li>
-        <li>Use the data to find your entry point — where there's audience demand but less saturation.</li>
-      </ul>
-
-      <div class="callout">
-        <p><strong>Tip for new streamers:</strong> Search a game you love and look at the follower counts of the top channels. If the leader has 500K followers and everyone else drops off sharply below 10K, the niche is winner-take-most. Look for games where several channels in the 5K–50K range are growing — that's a healthier competitive environment for a new streamer.</p>
+    <section id="results" class="results wrap" hidden>
+      <div class="results-head">
+        <h2>State of the niche: <span id="resultQuery" class="accent-text"></span></h2>
+        <p id="resultCount" class="muted"></p>
       </div>
-
-      <div class="callout-cta">
-        <h3>Find your Twitch niche — free</h3>
-        <p>Search any game or category and see who's winning on Twitch right now.</p>
-        <a href="/?platform=twitch" class="btn">Search Twitch →</a>
-      </div>
-
-      <h2>Frequently asked questions</h2>
-
-      <div class="faq-item">
-        <p class="faq-q">Can I search Twitch channels by keyword for free?</p>
-        <p class="faq-a">Yes. StateBlade's Twitch channel search is free and requires no account. Select the Twitch tab at stateblade.com, type any keyword or game name, and get a ranked list of top channels in that category.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">What data does StateBlade show for Twitch channels?</p>
-        <p class="faq-a">StateBlade shows follower counts, viewer stats, and activity data for Twitch channels matching your keyword — giving you a real picture of who's dominating any game or category.</p>
-      </div>
-      <div class="faq-item">
-        <p class="faq-q">Does StateBlade also support YouTube and Bluesky?</p>
-        <p class="faq-a">Yes. StateBlade supports YouTube niche research, Twitch channel search by keyword, and Bluesky account search by topic — all in one free tool. Switch platforms using the tab toggle on the homepage.</p>
-      </div>
-
+      <div id="resultsGrid" class="grid"></div>
     </section>
+
+    <section id="detail" class="detail wrap" hidden>
+      <button id="backBtn" class="back-btn">← Back to results</button>
+      <div id="detailContent"></div>
+    </section>
+
   </main>
+
   <footer class="footer">
     <div class="wrap footer-inner">
-      <span>StateBlade — free Twitch channel search tool. Not affiliated with Twitch or Amazon.</span>
+      <span>StateBlade — free, independent niche research tool. Not affiliated with YouTube, Google, Twitch, or Bluesky.</span>
       <nav style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;">
         <a href="/youtube/" style="color:var(--muted);font-size:0.85rem;">YouTube Research</a>
-        <a href="/bluesky/" style="color:var(--muted);font-size:0.85rem;">Bluesky Research</a>
+        <a href="/twitch/" style="color:var(--muted);font-size:0.85rem;">Twitch Search</a>
+        <a href="/kick/" style="color:var(--muted);font-size:0.85rem;">Kick Search</a>
+        <a href="/bluesky/" style="color:var(--muted);font-size:0.85rem;">Bluesky Search</a>
+        <a href="/vs-socialblade/" style="color:var(--muted);font-size:0.85rem;">vs SocialBlade</a>
         <a href="/blog/" style="color:var(--muted);font-size:0.85rem;">Blog</a>
       </nav>
     </div>
   </footer>
+
+  <script src="/script.js"></script>
 </body>
 </html>

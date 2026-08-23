@@ -15,42 +15,45 @@ const els = {
 
 let currentPlatform = "youtube";
 
-// Pre-select platform from ?platform= URL param (used by /youtube/, /twitch/, /bluesky/ landing pages)
+// Detect current platform from URL pathname: /youtube/ → youtube, /twitch/ → twitch
 (function initPlatformFromURL() {
-  const param = new URLSearchParams(window.location.search).get("platform");
-  if (!param || !["youtube", "twitch", "bluesky"].includes(param)) return;
+  const pathMap = { "/youtube/": "youtube", "/twitch/": "twitch", "/kick/": "kick", "/bluesky/": "bluesky" };
+  const param = pathMap[window.location.pathname] || null;
+  if (!param) return;
   currentPlatform = param;
+
+  // Activate the correct tab
   els.platformToggle.querySelectorAll(".platform-btn").forEach((b) => {
     const active = b.dataset.platform === param;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
   });
-  els.input.placeholder =
-    param === "twitch"
-      ? "Try \u201cspeedrunning\u201d, \u201cjust chatting\u201d, \u201cvalorант\u201d\u2026"
-      : param === "bluesky"
-      ? "Try \u201cai safety\u201d, \u201cclimate\u201d, \u201cindie games\u201d\u2026"
-      : "Try \u201cpersonal finance\u201d, \u201chome workouts\u201d, \u201cretro gaming\u201d\u2026";
+
+  // Set the right placeholder
+  const placeholders = {
+    twitch: "Try “speedrunning”, “just chatting”, “valorант”…",
+    kick: "Try “valorант”, “just chatting”, “slots”…",
+    bluesky: "Try “ai safety”, “climate”, “indie games”…",
+    youtube: "Try “personal finance”, “home workouts”, “retro gaming”…",
+  };
+  els.input.placeholder = placeholders[param];
+
+  // Focus input — user landed on a platform page ready to search
+  window.addEventListener("load", () => setTimeout(() => els.input.focus(), 300));
 })();
+
 
 els.platformToggle.addEventListener("click", (e) => {
   const btn = e.target.closest(".platform-btn");
   if (!btn) return;
-  currentPlatform = btn.dataset.platform;
+  const platform = btn.dataset.platform;
 
-  els.platformToggle.querySelectorAll(".platform-btn").forEach((b) => {
-    const active = b === btn;
-    b.classList.toggle("active", active);
-    b.setAttribute("aria-selected", String(active));
-  });
-
-  els.input.placeholder =
-    currentPlatform === "twitch"
-      ? "Try “speedrunning”, “just chatting”, “valorant”…"
-      : currentPlatform === "bluesky"
-      ? "Try “ai safety”, “climate”, “indie games”…"
-      : "Try “personal finance”, “home workouts”, “retro gaming”…";
+  // Navigate to platform URL — clean, SEO-friendly, linkable
+  const destinations = { youtube: "/youtube/", twitch: "/twitch/", kick: "/kick/", bluesky: "/bluesky/" };
+  if (window.location.pathname === destinations[platform]) return;
+  window.location.href = destinations[platform];
 });
+
 
 const numberFmt = new Intl.NumberFormat("en-US");
 
@@ -111,6 +114,8 @@ async function runSearch(q) {
   const endpoint =
     currentPlatform === "twitch"
       ? "/api/twitch-search"
+      : currentPlatform === "kick"
+      ? "/api/kick-search"
       : currentPlatform === "bluesky"
       ? "/api/bluesky-search"
       : "/api/search";
@@ -137,6 +142,11 @@ async function runSearch(q) {
       const liveCount = data.channels.filter((c) => c.isLive).length;
       els.resultCount.textContent = `${data.channels.length} channels · ${liveCount} live now`;
       setHint(data.note || "Powered by the official Twitch API.");
+    } else if (currentPlatform === "kick") {
+      renderKickGrid(data.channels);
+      const liveCount = data.channels.filter((c) => c.isLive).length;
+      els.resultCount.textContent = `${data.channels.length} channels · ${liveCount} live now`;
+      setHint(data.note || "Powered by the official Kick API.");
     } else if (currentPlatform === "bluesky") {
       renderBlueskyGrid(data.channels);
       els.resultCount.textContent = `${data.channels.length} accounts, ranked by followers`;
@@ -237,6 +247,51 @@ function renderTwitchGrid(channels) {
           el("span", { class: "stat-label" }, "CATEGORY"),
         ]),
       ]),
+    ]);
+    els.grid.appendChild(card);
+  });
+
+  els.grid.parentElement.appendChild(
+    el("div", { class: "ad-slot" }, "AD SLOT — connect AdSense after approval")
+  );
+}
+
+
+function renderKickGrid(channels) {
+  els.grid.innerHTML = "";
+  channels.forEach((c, idx) => {
+    const card = el("div", { class: "card" }, [
+      el("div", { class: "card-top" }, [
+        el("img", { class: "card-thumb", src: c.thumbnail || "", alt: "" }),
+        el("div", {}, [
+          el("div", { class: "card-rank" }, `#${idx + 1} IN NICHE`),
+          el("div", { class: "card-title" }, c.title || "Unknown channel"),
+        ]),
+      ]),
+      el(
+        "div",
+        { style: "margin: 8px 0;" },
+        c.isLive
+          ? el("span", { class: "live-badge" }, "LIVE")
+          : el("span", { class: "offline-badge" }, "OFFLINE")
+      ),
+      el("div", { class: "card-stats" }, [
+        el("div", {}, [
+          el("span", { class: "stat-num" }, abbreviate(c.followers)),
+          el("span", { class: "stat-label" }, "FOLLOWERS"),
+        ]),
+        el("div", {}, [
+          el("span", { class: "stat-num" }, c.isLive ? abbreviate(c.viewers) : "—"),
+          el("span", { class: "stat-label" }, "VIEWERS NOW"),
+        ]),
+        el("div", {}, [
+          el("span", { class: "stat-num" }, c.category || "—"),
+          el("span", { class: "stat-label" }, "CATEGORY"),
+        ]),
+      ]),
+      c.url
+        ? el("a", { href: c.url, target: "_blank", rel: "noopener", style: "font-size:0.78rem;color:var(--teal);margin-top:8px;display:block;" }, `kick.com/${c.slug || ""}`)
+        : null,
     ]);
     els.grid.appendChild(card);
   });

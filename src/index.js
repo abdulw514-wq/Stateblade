@@ -19,6 +19,9 @@ export default {
     if (url.pathname === "/api/bluesky-search") {
       return handleBlueskySearch(request, env, ctx);
     }
+    if (url.pathname === "/api/kick-search") {
+      return handleKickSearch(request, env, ctx);
+    }
 
     // Not an API route — serve the static site
     return env.ASSETS.fetch(request);
@@ -545,6 +548,134 @@ async function getBlueskySession(env, ctx, { forceRefresh = false } = {}) {
   ctx.waitUntil(cache.put(sessionCacheKey, sessionResponse));
 
   return data.accessJwt;
+}
+
+
+// ---------- /api/kick-search?q=keyword ----------
+// Kick uses OAuth2 client_credentials to issue an app token, then
+// searches channels via the public Kick API v1.
+// Set KICK_CLIENT_ID and KICK_CLIENT_SECRET in Workers secrets.
+async function handleKickSearch(request, env, ctx) {
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim();
+
+  if (!q) return json({ error: "Missing query parameter 'q'." }, 400);
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  if (!env.KICK_CLIENT_ID || !env.KICK_CLIENT_SECRET) {
+    return json(
+      { error: "Server is missing KICK_CLIENT_ID / KICK_CLIENT_SECRET. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
+      500
+    );
+  }
+
+  try {
+    const token = await getKickToken(env, ctx);
+
+    // Search channels by keyword
+    const searchUrl = new URL("https://api.kick.com/public/v1/channels");
+    searchUrl.searchParams.set("keyword", q);
+    searchUrl.searchParams.set("limit", "20");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Client-Id": env.KICK_CLIENT_ID,
+        Accept: "application/json",
+      },
+    });
+
+    const searchData = await searchRes.json();
+
+    if (!searchRes.ok) {
+      return json(
+        { error: searchData?.message || `Kick search failed (${searchRes.status}).` },
+        searchRes.status
+      );
+    }
+
+    const items = searchData.data || searchData.channels || searchData || [];
+    if (!Array.isArray(items) || items.length === 0) {
+      const empty = json({ query: q, channels: [] });
+      ctx.waitUntil(cache.put(cacheKey, empty.clone()));
+      return empty;
+    }
+
+    const channels = items
+      .map((c) => ({
+        id: String(c.id || c.channel_id || ""),
+        title: c.channel_name || c.slug || c.broadcaster_username || "Unknown",
+        thumbnail: c.user?.profile_pic || c.thumbnail || c.banner_image || "",
+        slug: c.slug || c.channel_name || "",
+        followers: safeInt(c.followers_count || c.follower_count || c.followers || 0),
+        isLive: !!(c.livestream || c.is_live || false),
+        viewers: safeInt(c.livestream?.viewer_count || c.current_viewers || 0),
+        category: c.category?.name || c.livestream?.categories?.[0]?.name || null,
+        url: `https://kick.com/${c.slug || c.channel_name || ""}`,
+      }))
+      .sort((a, b) => {
+        // Live channels first, then by followers
+        if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+        return b.followers - a.followers;
+      });
+
+    const result = json({
+      query: q,
+      channels,
+      note: "Powered by the official Kick API — ranked by follower count, live channels first.",
+    });
+    ctx.waitUntil(cache.put(cacheKey, result.clone()));
+    return result;
+  } catch (err) {
+    return json({ error: "Unexpected server error.", detail: String(err) }, 500);
+  }
+}
+
+// Fetches and edge-caches a Kick OAuth2 app token (client_credentials).
+// Tokens last ~24 hours; cached for 12 hours to stay safe.
+async function getKickToken(env, ctx, { forceRefresh = false } = {}) {
+  const cache = caches.default;
+  const tokenCacheKey = new Request("https://internal.stateblade/kick-token");
+
+  if (forceRefresh) {
+    await cache.delete(tokenCacheKey);
+  } else {
+    const cached = await cache.match(tokenCacheKey);
+    if (cached) {
+      const data = await cached.json();
+      return data.access_token;
+    }
+  }
+
+  const res = await fetch("https://id.kick.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: env.KICK_CLIENT_ID,
+      client_secret: env.KICK_CLIENT_SECRET,
+    }).toString(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data?.message || data?.error_description || "Failed to obtain Kick access token.");
+  }
+
+  const tokenResponse = new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=43200", // 12 hours
+    },
+  });
+  ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
+
+  return data.access_token;
 }
 
 // A simple, transparent heuristic grade (SocialBlade-style A+ to C)
