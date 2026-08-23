@@ -32,7 +32,7 @@ let currentPlatform = "youtube";
   // Set the right placeholder
   const placeholders = {
     twitch: "Try “speedrunning”, “just chatting”, “valorант”…",
-    kick: "Try “valorант”, “just chatting”, “slots”…",
+    kick: "Enter an exact Kick username, e.g. “xqc”…",
     bluesky: "Try “ai safety”, “climate”, “indie games”…",
     youtube: "Try “personal finance”, “home workouts”, “retro gaming”…",
   };
@@ -277,10 +277,6 @@ function renderKickGrid(channels) {
       ),
       el("div", { class: "card-stats" }, [
         el("div", {}, [
-          el("span", { class: "stat-num" }, abbreviate(c.followers)),
-          el("span", { class: "stat-label" }, "FOLLOWERS"),
-        ]),
-        el("div", {}, [
           el("span", { class: "stat-num" }, c.isLive ? abbreviate(c.viewers) : "—"),
           el("span", { class: "stat-label" }, "VIEWERS NOW"),
         ]),
@@ -289,6 +285,9 @@ function renderKickGrid(channels) {
           el("span", { class: "stat-label" }, "CATEGORY"),
         ]),
       ]),
+      c.streamTitle
+        ? el("div", { style: "font-size:0.82rem;color:var(--muted);margin-top:6px;" }, c.streamTitle)
+        : null,
       c.url
         ? el("a", { href: c.url, target: "_blank", rel: "noopener", style: "font-size:0.78rem;color:var(--teal);margin-top:8px;display:block;" }, `kick.com/${c.slug || ""}`)
         : null,

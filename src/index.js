@@ -551,15 +551,33 @@ async function getBlueskySession(env, ctx, { forceRefresh = false } = {}) {
 }
 
 
-// ---------- /api/kick-search?q=keyword ----------
-// Kick uses OAuth2 client_credentials to issue an app token, then
-// searches channels via the public Kick API v1.
+// ---------- /api/kick-search?q=username ----------
+// IMPORTANT: Kick's official public API (api.kick.com/public/v1) has NO
+// keyword/fuzzy search endpoint for channels. The Channels endpoint only
+// supports an EXACT lookup by `slug` (username) or `broadcaster_user_id`.
+// (Kick's own docs: https://docs.kick.com/apis/channels)
+//
+// So this treats `q` as a candidate username: it slugifies it and does an
+// exact-match lookup. If it doesn't exist, we return an empty result with
+// a clear message instead of pretending to "search" and silently failing.
+//
 // Set KICK_CLIENT_ID and KICK_CLIENT_SECRET in Workers secrets.
 async function handleKickSearch(request, env, ctx) {
   const url = new URL(request.url);
-  const q = (url.searchParams.get("q") || "").trim();
+  const qRaw = (url.searchParams.get("q") || "").trim();
 
-  if (!q) return json({ error: "Missing query parameter 'q'." }, 400);
+  if (!qRaw) return json({ error: "Missing query parameter 'q'." }, 400);
+
+  // Kick usernames/slugs: lowercase letters, numbers, hyphens, underscores.
+  const slug = qRaw
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]/g, "");
+
+  if (!slug) {
+    return json({ query: qRaw, channels: [], note: "Enter a valid Kick username." });
+  }
 
   const cache = caches.default;
   const cacheKey = new Request(url.toString(), request);
@@ -574,65 +592,97 @@ async function handleKickSearch(request, env, ctx) {
   }
 
   try {
-    const token = await getKickToken(env, ctx);
+    const channel = await fetchKickChannelBySlug(slug, env, ctx);
 
-    // Search channels by keyword
-    const searchUrl = new URL("https://api.kick.com/public/v1/channels");
-    searchUrl.searchParams.set("keyword", q);
-    searchUrl.searchParams.set("limit", "20");
-
-    const searchRes = await fetch(searchUrl.toString(), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Client-Id": env.KICK_CLIENT_ID,
-        Accept: "application/json",
-      },
-    });
-
-    const searchData = await searchRes.json();
-
-    if (!searchRes.ok) {
-      return json(
-        { error: searchData?.message || `Kick search failed (${searchRes.status}).` },
-        searchRes.status
-      );
-    }
-
-    const items = searchData.data || searchData.channels || searchData || [];
-    if (!Array.isArray(items) || items.length === 0) {
-      const empty = json({ query: q, channels: [] });
+    if (!channel) {
+      const empty = json({
+        query: qRaw,
+        channels: [],
+        note: "Kick's public API only supports exact-username lookup, not keyword search. No channel matches that username exactly — check the spelling.",
+      });
       ctx.waitUntil(cache.put(cacheKey, empty.clone()));
       return empty;
     }
 
-    const channels = items
-      .map((c) => ({
-        id: String(c.id || c.channel_id || ""),
-        title: c.channel_name || c.slug || c.broadcaster_username || "Unknown",
-        thumbnail: c.user?.profile_pic || c.thumbnail || c.banner_image || "",
-        slug: c.slug || c.channel_name || "",
-        followers: safeInt(c.followers_count || c.follower_count || c.followers || 0),
-        isLive: !!(c.livestream || c.is_live || false),
-        viewers: safeInt(c.livestream?.viewer_count || c.current_viewers || 0),
-        category: c.category?.name || c.livestream?.categories?.[0]?.name || null,
-        url: `https://kick.com/${c.slug || c.channel_name || ""}`,
-      }))
-      .sort((a, b) => {
-        // Live channels first, then by followers
-        if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
-        return b.followers - a.followers;
+    // Enrich with avatar via the Users endpoint (Channels response has no profile pic).
+    let profilePicture = "";
+    try {
+      const token = await getKickToken(env, ctx);
+      const usersUrl = new URL("https://api.kick.com/public/v1/users");
+      usersUrl.searchParams.set("id", String(channel.broadcaster_user_id));
+      const usersRes = await fetch(usersUrl.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Client-Id": env.KICK_CLIENT_ID,
+          Accept: "application/json",
+        },
       });
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        profilePicture = usersData?.data?.[0]?.profile_picture || "";
+      }
+    } catch {
+      // Non-fatal — just skip the avatar.
+    }
+
+    const channels = [
+      {
+        id: String(channel.broadcaster_user_id || ""),
+        title: channel.slug || slug,
+        thumbnail: profilePicture,
+        slug: channel.slug || slug,
+        isLive: !!channel.stream?.is_live,
+        viewers: safeInt(channel.stream?.viewer_count || 0),
+        category: channel.category?.name || null,
+        streamTitle: channel.stream_title || null,
+        url: `https://kick.com/${channel.slug || slug}`,
+      },
+    ];
 
     const result = json({
-      query: q,
+      query: qRaw,
       channels,
-      note: "Powered by the official Kick API — ranked by follower count, live channels first.",
+      note: "Powered by the official Kick API (exact-username lookup).",
     });
     ctx.waitUntil(cache.put(cacheKey, result.clone()));
     return result;
   } catch (err) {
     return json({ error: "Unexpected server error.", detail: String(err) }, 500);
   }
+}
+
+// Fetches a single channel by exact slug. Returns null on 404/not-found,
+// throws on real errors (auth failures, 5xx, etc.).
+async function fetchKickChannelBySlug(slug, env, ctx, { retried = false } = {}) {
+  const token = await getKickToken(env, ctx);
+
+  const lookupUrl = new URL("https://api.kick.com/public/v1/channels");
+  lookupUrl.searchParams.set("slug", slug);
+
+  const res = await fetch(lookupUrl.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Client-Id": env.KICK_CLIENT_ID,
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 404) return null;
+
+  // If the cached token expired/was rejected, refresh once and retry.
+  if (res.status === 401 && !retried) {
+    await getKickToken(env, ctx, { forceRefresh: true });
+    return fetchKickChannelBySlug(slug, env, ctx, { retried: true });
+  }
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data?.message || `Kick channel lookup failed (${res.status}).`);
+  }
+
+  const items = data?.data || [];
+  return items[0] || null;
 }
 
 // Fetches and edge-caches a Kick OAuth2 app token (client_credentials).
