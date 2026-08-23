@@ -6,5 +6,9 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
+  },
+  "vars": {
+    "TWITCH_CLIENT_ID": "PASTE_YOUR_TWITCH_CLIENT_ID_HERE",
+    "KICK_CLIENT_ID": "PASTE_YOUR_KICK_CLIENT_ID_HERE"
   }
 }

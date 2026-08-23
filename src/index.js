@@ -568,12 +568,7 @@ async function handleKickSearch(request, env, ctx) {
 
   if (!qRaw) return json({ error: "Missing query parameter 'q'." }, 400);
 
-  // Kick usernames/slugs: lowercase letters, numbers, hyphens, underscores.
-  const slug = qRaw
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9_-]/g, "");
+  const slug = extractKickSlug(qRaw);
 
   if (!slug) {
     return json({ query: qRaw, channels: [], note: "Enter a valid Kick username." });
@@ -683,6 +678,36 @@ async function fetchKickChannelBySlug(slug, env, ctx, { retried = false } = {}) 
 
   const items = data?.data || [];
   return items[0] || null;
+}
+
+// Turns whatever the user typed into a Kick username/slug:
+// - plain username:            "harleyfoxx"        -> "harleyfoxx"
+// - full URL:                  "https://kick.com/harleyfoxx" -> "harleyfoxx"
+// - URL with trailing slash/query: "kick.com/harleyfoxx/" or "?ref=x" -> "harleyfoxx"
+// - pasted markdown link:      "[harleyfoxx](https://kick.com/harleyfoxx)" -> "harleyfoxx"
+function extractKickSlug(input) {
+  let s = input.trim();
+
+  // Markdown link: [label](url) — prefer the URL if it points at kick.com,
+  // otherwise fall back to the label text.
+  const mdMatch = s.match(/\[([^\]]+)\]\(([^)]+)\)/);
+  if (mdMatch) {
+    s = /kick\.com/i.test(mdMatch[2]) ? mdMatch[2] : mdMatch[1];
+  }
+
+  // Full or partial URL: pull out the path segment right after kick.com/
+  const urlMatch = s.match(/kick\.com\/([^/?#\s]+)/i);
+  if (urlMatch) {
+    s = urlMatch[1];
+  }
+
+  // Final cleanup: lowercase, spaces to hyphens, strip anything that isn't
+  // a valid Kick slug character.
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]/g, "");
 }
 
 // Fetches and edge-caches a Kick OAuth2 app token (client_credentials).
