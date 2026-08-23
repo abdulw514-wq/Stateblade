@@ -22,6 +22,9 @@ export default {
     if (url.pathname === "/api/kick-search") {
       return handleKickSearch(request, env, ctx);
     }
+    if (url.pathname === "/api/dailymotion-search") {
+      return handleDailymotionSearch(request, env, ctx);
+    }
 
     // Not an API route — serve the static site
     return env.ASSETS.fetch(request);
@@ -746,6 +749,213 @@ async function getKickToken(env, ctx, { forceRefresh = false } = {}) {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=43200", // 12 hours
+    },
+  });
+  ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));
+
+  return data.access_token;
+}
+
+// ---------- /api/dailymotion-search?q=keyword ----------
+// Dailymotion's current API (v2) only exposes YOUR OWN profile/videos —
+// there's no public "search all creators by keyword" endpoint in it.
+// The older Legacy Data API (api.dailymotion.com) still works for public
+// reads, though, and its /videos?search= endpoint lets us search the whole
+// public catalog by keyword. We use that, then group matching videos by
+// uploader (owner) to build a channel-style result list — similar in spirit
+// to how a YouTube keyword search surfaces relevant channels.
+//
+// If the person instead pastes a Dailymotion profile URL (dailymotion.com/x)
+// or a dai.ly short link, we treat that as a direct username lookup instead.
+//
+// Set DAILYMOTION_API_KEY and DAILYMOTION_API_SECRET in Workers vars/secrets.
+async function handleDailymotionSearch(request, env, ctx) {
+  const url = new URL(request.url);
+  const qRaw = (url.searchParams.get("q") || "").trim();
+
+  if (!qRaw) return json({ error: "Missing query parameter 'q'." }, 400);
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  if (!env.DAILYMOTION_API_KEY || !env.DAILYMOTION_API_SECRET) {
+    return json(
+      { error: "Server is missing DAILYMOTION_API_KEY / DAILYMOTION_API_SECRET. Set them in Cloudflare Workers > Settings > Variables and Secrets." },
+      500
+    );
+  }
+
+  try {
+    const directUsername = extractDailymotionUsername(qRaw);
+
+    const channels = directUsername
+      ? await lookupDailymotionUser(directUsername, env, ctx)
+      : await searchDailymotionByKeyword(qRaw, env, ctx);
+
+    const result = json({
+      query: qRaw,
+      channels,
+      note: directUsername
+        ? "Powered by the Dailymotion API (direct username lookup)."
+        : "Powered by the Dailymotion API — channels ranked by the most-viewed matching video found for each.",
+    });
+    ctx.waitUntil(cache.put(cacheKey, result.clone()));
+    return result;
+  } catch (err) {
+    return json({ error: "Unexpected server error.", detail: String(err) }, 500);
+  }
+}
+
+// Pulls a username out of a pasted Dailymotion URL / dai.ly link / markdown
+// link. Returns null if the input doesn't look like a URL at all (in which
+// case it should be treated as a keyword search instead).
+function extractDailymotionUsername(input) {
+  let s = input.trim();
+
+  const mdMatch = s.match(/\[([^\]]+)\]\(([^)]+)\)/);
+  if (mdMatch) {
+    s = /dailymotion\.com|dai\.ly/i.test(mdMatch[2]) ? mdMatch[2] : mdMatch[1];
+  }
+
+  const urlMatch = s.match(/dailymotion\.com\/([^/?#\s]+)/i);
+  if (urlMatch) {
+    // Ignore Dailymotion's non-profile top-level paths.
+    const reserved = new Set(["video", "playlist", "search", "live", "channel"]);
+    const candidate = urlMatch[1].toLowerCase();
+    if (!reserved.has(candidate)) {
+      return candidate.replace(/[^a-z0-9_-]/g, "");
+    }
+    return null;
+  }
+
+  return null;
+}
+
+// Looks up one Dailymotion user by exact username and formats it as a
+// single-item channel list.
+async function lookupDailymotionUser(username, env, ctx) {
+  const token = await getDailymotionToken(env, ctx);
+
+  const fields = "id,screenname,avatar_240_url,url,videos_total,followers_total";
+  const res = await fetch(
+    `https://api.dailymotion.com/user/${encodeURIComponent(username)}?fields=${fields}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  if (res.status === 404) return [];
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Dailymotion user lookup failed (${res.status}).`);
+  }
+
+  return [
+    {
+      id: String(data.id || ""),
+      title: data.screenname || username,
+      thumbnail: data.avatar_240_url || "",
+      slug: username,
+      followers: safeInt(data.followers_total || 0),
+      videosTotal: safeInt(data.videos_total || 0),
+      url: data.url || `https://www.dailymotion.com/${username}`,
+    },
+  ];
+}
+
+// Searches public videos by keyword, then dedupes to one entry per uploader
+// (keeping their highest-viewed matching video), sorted by that view count.
+async function searchDailymotionByKeyword(q, env, ctx) {
+  const token = await getDailymotionToken(env, ctx);
+
+  const fields = [
+    "id",
+    "title",
+    "views_total",
+    "thumbnail_360_url",
+    "owner",
+    "owner.screenname",
+    "owner.avatar_240_url",
+    "owner.url",
+  ].join(",");
+
+  const searchUrl = new URL("https://api.dailymotion.com/videos");
+  searchUrl.searchParams.set("search", q);
+  searchUrl.searchParams.set("limit", "30");
+  searchUrl.searchParams.set("fields", fields);
+  searchUrl.searchParams.set("sort", "relevance");
+
+  const res = await fetch(searchUrl.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Dailymotion search failed (${res.status}).`);
+  }
+
+  const videos = data.list || [];
+  const byOwner = new Map();
+
+  for (const v of videos) {
+    const ownerId = v["owner"];
+    if (!ownerId) continue;
+    const views = safeInt(v.views_total || 0);
+    const existing = byOwner.get(ownerId);
+    if (!existing || views > existing.views) {
+      byOwner.set(ownerId, {
+        id: String(ownerId),
+        title: v["owner.screenname"] || "Unknown channel",
+        thumbnail: v["owner.avatar_240_url"] || "",
+        slug: (v["owner.url"] || "").split("/").filter(Boolean).pop() || "",
+        views,
+        topVideoTitle: v.title || "",
+        topVideoThumbnail: v.thumbnail_360_url || "",
+        url: v["owner.url"] || "",
+      });
+    }
+  }
+
+  return Array.from(byOwner.values()).sort((a, b) => b.views - a.views);
+}
+
+// Fetches and edge-caches a Dailymotion OAuth2 app token (client_credentials).
+// Legacy API tokens typically last a few hours; cached for 3 hours to stay safe.
+async function getDailymotionToken(env, ctx, { forceRefresh = false } = {}) {
+  const cache = caches.default;
+  const tokenCacheKey = new Request("https://internal.stateblade/dailymotion-token");
+
+  if (forceRefresh) {
+    await cache.delete(tokenCacheKey);
+  } else {
+    const cached = await cache.match(tokenCacheKey);
+    if (cached) {
+      const data = await cached.json();
+      return data.access_token;
+    }
+  }
+
+  const res = await fetch("https://api.dailymotion.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: env.DAILYMOTION_API_KEY,
+      client_secret: env.DAILYMOTION_API_SECRET,
+    }).toString(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data?.error_description || data?.message || "Failed to obtain Dailymotion access token.");
+  }
+
+  const tokenResponse = new Response(JSON.stringify(data), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=10800", // 3 hours
     },
   });
   ctx.waitUntil(cache.put(tokenCacheKey, tokenResponse));

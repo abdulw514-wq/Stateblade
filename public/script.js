@@ -17,7 +17,7 @@ let currentPlatform = "youtube";
 
 // Detect current platform from URL pathname: /youtube/ → youtube, /twitch/ → twitch
 (function initPlatformFromURL() {
-  const pathMap = { "/youtube/": "youtube", "/twitch/": "twitch", "/kick/": "kick", "/bluesky/": "bluesky" };
+  const pathMap = { "/youtube/": "youtube", "/twitch/": "twitch", "/kick/": "kick", "/bluesky/": "bluesky", "/dailymotion/": "dailymotion" };
   const param = pathMap[window.location.pathname] || null;
   if (!param) return;
   currentPlatform = param;
@@ -35,6 +35,7 @@ let currentPlatform = "youtube";
     kick: "Enter an exact Kick username, e.g. “xqc”…",
     bluesky: "Try “ai safety”, “climate”, “indie games”…",
     youtube: "Try “personal finance”, “home workouts”, “retro gaming”…",
+    dailymotion: "Try a keyword, or paste a channel URL…",
   };
   els.input.placeholder = placeholders[param];
 
@@ -49,7 +50,7 @@ els.platformToggle.addEventListener("click", (e) => {
   const platform = btn.dataset.platform;
 
   // Navigate to platform URL — clean, SEO-friendly, linkable
-  const destinations = { youtube: "/youtube/", twitch: "/twitch/", kick: "/kick/", bluesky: "/bluesky/" };
+  const destinations = { youtube: "/youtube/", twitch: "/twitch/", kick: "/kick/", bluesky: "/bluesky/", dailymotion: "/dailymotion/" };
   if (window.location.pathname === destinations[platform]) return;
   window.location.href = destinations[platform];
 });
@@ -118,6 +119,8 @@ async function runSearch(q) {
       ? "/api/kick-search"
       : currentPlatform === "bluesky"
       ? "/api/bluesky-search"
+      : currentPlatform === "dailymotion"
+      ? "/api/dailymotion-search"
       : "/api/search";
 
   try {
@@ -151,6 +154,10 @@ async function runSearch(q) {
       renderBlueskyGrid(data.channels);
       els.resultCount.textContent = `${data.channels.length} accounts, ranked by followers`;
       setHint(data.note || "Powered by Bluesky's fully public API.");
+    } else if (currentPlatform === "dailymotion") {
+      renderDailymotionGrid(data.channels);
+      els.resultCount.textContent = `${data.channels.length} channels found`;
+      setHint(data.note || "Powered by the Dailymotion API.");
     } else {
       renderGrid(data.channels);
       els.resultCount.textContent = `${data.channels.length} channels, ranked by subscribers`;
@@ -290,6 +297,50 @@ function renderKickGrid(channels) {
         : null,
       c.url
         ? el("a", { href: c.url, target: "_blank", rel: "noopener", style: "font-size:0.78rem;color:var(--teal);margin-top:8px;display:block;" }, `kick.com/${c.slug || ""}`)
+        : null,
+    ]);
+    els.grid.appendChild(card);
+  });
+
+  els.grid.parentElement.appendChild(
+    el("div", { class: "ad-slot" }, "AD SLOT — connect AdSense after approval")
+  );
+}
+
+function renderDailymotionGrid(channels) {
+  els.grid.innerHTML = "";
+  channels.forEach((c, idx) => {
+    const isDirectLookup = typeof c.followers === "number";
+    const card = el("div", { class: "card" }, [
+      el("div", { class: "card-top" }, [
+        el("img", { class: "card-thumb", src: c.thumbnail || "", alt: "" }),
+        el("div", {}, [
+          el("div", { class: "card-rank" }, `#${idx + 1} IN NICHE`),
+          el("div", { class: "card-title" }, c.title || "Unknown channel"),
+        ]),
+      ]),
+      el("div", { class: "card-stats" }, [
+        isDirectLookup
+          ? el("div", {}, [
+              el("span", { class: "stat-num" }, abbreviate(c.followers)),
+              el("span", { class: "stat-label" }, "FOLLOWERS"),
+            ])
+          : el("div", {}, [
+              el("span", { class: "stat-num" }, abbreviate(c.views)),
+              el("span", { class: "stat-label" }, "TOP VIDEO VIEWS"),
+            ]),
+        isDirectLookup
+          ? el("div", {}, [
+              el("span", { class: "stat-num" }, abbreviate(c.videosTotal)),
+              el("span", { class: "stat-label" }, "VIDEOS"),
+            ])
+          : null,
+      ]),
+      c.topVideoTitle
+        ? el("div", { style: "font-size:0.82rem;color:var(--muted);margin-top:6px;" }, `Matched: “${c.topVideoTitle}”`)
+        : null,
+      c.url
+        ? el("a", { href: c.url, target: "_blank", rel: "noopener", style: "font-size:0.78rem;color:var(--teal);margin-top:8px;display:block;" }, c.url.replace(/^https?:\/\//, ""))
         : null,
     ]);
     els.grid.appendChild(card);
