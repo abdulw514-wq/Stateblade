@@ -790,14 +790,33 @@ async function handleDailymotionSearch(request, env, ctx) {
   try {
     const directUsername = extractDailymotionUsername(qRaw);
 
-    const channels = directUsername
-      ? await lookupDailymotionUser(directUsername, env, ctx)
-      : await searchDailymotionByKeyword(qRaw, env, ctx);
+    let channels;
+    let usedDirectLookup = false;
+
+    if (directUsername) {
+      // Looks like a URL — trust it as an exact username.
+      channels = await lookupDailymotionUser(directUsername, env, ctx);
+      usedDirectLookup = true;
+    } else {
+      // Plain text: it might STILL be an exact username (e.g. "maxallix"),
+      // and Dailymotion's search only matches video titles/descriptions —
+      // not channel names — so a real channel with no matching video title
+      // would otherwise show up as "not found." Try the exact-username
+      // lookup first, and only fall back to keyword video search if that
+      // comes up empty.
+      const candidateUsername = qRaw.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "");
+      channels = candidateUsername ? await lookupDailymotionUser(candidateUsername, env, ctx) : [];
+      if (channels.length > 0) {
+        usedDirectLookup = true;
+      } else {
+        channels = await searchDailymotionByKeyword(qRaw, env, ctx);
+      }
+    }
 
     const result = json({
       query: qRaw,
       channels,
-      note: directUsername
+      note: usedDirectLookup
         ? "Powered by the Dailymotion API (direct username lookup)."
         : "Powered by the Dailymotion API — channels ranked by the most-viewed matching video found for each.",
     });
@@ -819,10 +838,14 @@ function extractDailymotionUsername(input) {
     s = /dailymotion\.com|dai\.ly/i.test(mdMatch[2]) ? mdMatch[2] : mdMatch[1];
   }
 
-  const urlMatch = s.match(/dailymotion\.com\/([^/?#\s]+)/i);
+  const urlMatch = s.match(/dailymotion\.com\/([^/?#\s]+)(?:\/([^/?#\s]+))?/i);
   if (urlMatch) {
+    // dailymotion.com/user/<name> — the real username is the SECOND segment.
+    if (urlMatch[1].toLowerCase() === "user" && urlMatch[2]) {
+      return urlMatch[2].toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    }
     // Ignore Dailymotion's non-profile top-level paths.
-    const reserved = new Set(["video", "playlist", "search", "live", "channel"]);
+    const reserved = new Set(["video", "playlist", "search", "live", "channel", "user"]);
     const candidate = urlMatch[1].toLowerCase();
     if (!reserved.has(candidate)) {
       return candidate.replace(/[^a-z0-9_-]/g, "");
